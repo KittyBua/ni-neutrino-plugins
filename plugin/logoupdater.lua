@@ -110,12 +110,22 @@ function isdir(path)
 end
 
 function create_logoupdater_cfg()
-	file = io.open(logoupdater_cfg, "w")
-	file:write("eventlogos=1", "\n")
-	file:write("popuplogos=0", "\n")
-	file:write("use_git=0", "\n")
-	file:write("keep_files=0", "\n")
-	file:close()
+	local cfg_dir = string.match(logoupdater_cfg, "(.+)/[^/]+$")
+	if cfg_dir ~= nil and isdir(cfg_dir) ~= true then
+		fh:mkdir(cfg_dir)
+	end
+
+	local cfg_file = io.open(logoupdater_cfg, "w")
+	if cfg_file == nil then
+		io.write(string.format("ERROR: unable to open %s for writing\n", logoupdater_cfg))
+		return false
+	end
+	cfg_file:write("eventlogos=1", "\n")
+	cfg_file:write("popuplogos=0", "\n")
+	cfg_file:write("use_git=0", "\n")
+	cfg_file:write("keep_files=0", "\n")
+	cfg_file:close()
+	return true
 end
 
 if (exists(logoupdater_cfg) ~= true) then
@@ -123,13 +133,19 @@ if (exists(logoupdater_cfg) ~= true) then
 end
 
 function get_cfg_value(str)
+	if (exists(logoupdater_cfg) ~= true) then
+		return 0
+	end
+
+	local value = 0
 	for line in io.lines(logoupdater_cfg) do
 		if line:match(str .. "=") then
 			local i,j = string.find(line, str .. "=")
-			r = tonumber(string.sub(line, j+1, #line))
+			value = tonumber(string.sub(line, j+1, #line)) or 0
+			break
 		end
 	end
-	return r
+	return value
 end
 
 if (get_cfg_value("use_git") == 1) then
