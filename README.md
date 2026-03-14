@@ -9,11 +9,17 @@ Standalone Neutrino Lua plugin for channel logo updates (`logoupdater`).
 - `plugin/logoupdater.png`
 - `LICENSE`
 
-## Install (local)
+## Install
 
 ```bash
-make install DESTDIR=$PWD/dist PREFIX=/usr
+make install DESTDIR=/tmp/pkgroot PREFIX=/usr
 ```
 
 This installs files to:
-`dist/usr/share/neutrino/plugins/lua/logoupdater`
+`/tmp/pkgroot/usr/share/neutrino/plugins/lua/logoupdater`
+
+For a quick local test tree:
+
+```bash
+make install-local
+```
