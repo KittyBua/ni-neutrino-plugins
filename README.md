@@ -12,11 +12,11 @@ Standalone Neutrino Lua plugin for channel logo updates (`logoupdater`).
 ## Install
 
 ```bash
-make install DESTDIR=/tmp/pkgroot PREFIX=/usr
+make install DESTDIR=/tmp/pkgroot PREFIX=/usr/share/tuxbox/neutrino PLUGIN_SUBDIR=plugins
 ```
 
 This installs files to:
-`/tmp/pkgroot/usr/share/neutrino/plugins/lua/logoupdater`
+`/tmp/pkgroot/usr/share/tuxbox/neutrino/plugins`
 
 For a quick local test tree:
 
