@@ -108,17 +108,31 @@ end
 --   logo_hdd_dir -> LOGODIR_VAR -> LOGODIR
 -- (see pictureviewer.cpp). Creates the user-configured dir on demand so
 -- a fresh install with a missing logo_hdd_dir still succeeds.
+-- Path is taken straight from neutrino.conf; the plugin never persists
+-- its own logo path.
 local function resolve_logo_dir(conf)
+	local neutrino_path = conf:getString("logo_hdd_dir", "")
 	local candidates = {
-		conf:getString("logo_hdd_dir", ""),
-		LOGODIR_VAR,
-		LOGODIR,
+		{ source = "neutrino.conf (logo_hdd_dir)", path = neutrino_path },
+		{ source = "LOGODIR_VAR",                  path = LOGODIR_VAR },
+		{ source = "LOGODIR",                      path = LOGODIR },
 	}
-	for _, p in ipairs(candidates) do
-		if p and p ~= "" and ensure_dir(p) then
-			return p
+	for _, c in ipairs(candidates) do
+		if c.path and c.path ~= "" then
+			if ensure_dir(c.path) then
+				io.write(string.format(
+					"logoupdater: using logo dir %q (source: %s)\n",
+					c.path, c.source))
+				return c.path
+			else
+				io.write(string.format(
+					"logoupdater: WARNING candidate %q (source: %s) is unusable, trying next\n",
+					c.path, c.source))
+			end
 		end
 	end
+	io.write(string.format(
+		"logoupdater: WARNING falling back to hardcoded %q\n", LOGODIR))
 	return LOGODIR
 end
 
