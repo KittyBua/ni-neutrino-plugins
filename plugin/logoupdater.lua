@@ -136,6 +136,114 @@ local function resolve_logo_dir(conf)
 	return LOGODIR
 end
 
+-- Migrates image files AND image-named symlinks from old_dir to new_dir
+-- when the user changed the Neutrino logo path. Scope and policy:
+--   * Image-named entries only: *.png, *.jpg, *.jpeg, *.gif
+--     (both regular files and symlinks — see plan "Symlink handling")
+--   * Skip if old_dir is empty, equal to new_dir, missing, or a system
+--     default (LOGODIR / LOGODIR_VAR — those are shared/read-only).
+--   * Conflict handling honors keep_files:
+--       keep_files=0 -> overwrite destination, source is removed
+--       keep_files=1 -> if dest exists and is byte-identical, just remove
+--                       source; if dest exists and differs, leave both;
+--                       if dest missing, plain move
+--     Symlinks always take the keep_files=0 path: cmp on a link compares
+--     the dereferenced target, which conflates link vs. file equality.
+--     A duplicate-named link in the destination is overwritten unless
+--     keep_files=1 AND the dest is a real file (in which case we skip).
+--   * After moves, empty subdirectories under old_dir are pruned.
+--   * Some symlinks may break (absolute targets into old_dir). User is
+--     advised to re-run the in-plugin update to refresh them.
+local function migrate_logos(old_dir, new_dir, keep_files)
+	if not old_dir or old_dir == "" then return end
+	if old_dir == new_dir then return end
+	if old_dir == LOGODIR or old_dir == LOGODIR_VAR then
+		io.write(string.format(
+			"logoupdater: skipping migration from system default %q\n", old_dir))
+		return
+	end
+	if not isdir(old_dir) then return end
+	if not isdir(new_dir) then
+		io.write(string.format(
+			"logoupdater: migration target %q missing, skipping\n", new_dir))
+		return
+	end
+
+	io.write(string.format(
+		"logoupdater: migrating image files and symlinks from %q to %q (keep_files=%d)\n",
+		old_dir, new_dir, keep_files or 0))
+
+	-- Collect candidate image-named entries: regular files OR symlinks.
+	-- Case-insensitive extension match.
+	local find_cmd = string.format(
+		"find %s \\( -type f -o -type l \\) "
+		.. "\\( -iname '*.png' -o -iname '*.jpg' "
+		.. "-o -iname '*.jpeg' -o -iname '*.gif' \\) -print",
+		shq(old_dir))
+	local ok_find, find_out = execute_command(find_cmd)
+	if not ok_find then
+		io.write("logoupdater: migration scan failed, skipping\n")
+		return
+	end
+
+	local moved, skipped, removed, links_moved = 0, 0, 0, 0
+	for src in string.gmatch(find_out or "", "[^\n]+") do
+		-- Compute path relative to old_dir to mirror structure under new_dir.
+		local rel = src:sub(#old_dir + 2) -- strip "old_dir/"
+		local dst = new_dir .. "/" .. rel
+		local dst_parent = string.match(dst, "(.+)/[^/]+$")
+		if dst_parent then ensure_dir(dst_parent) end
+
+		-- Distinguish symlink vs regular file at source. fh:exist with "f"
+		-- follows symlinks, so we probe via shell: test -L for "is a link".
+		local is_link = execute_command("test -L " .. shq(src))
+
+		if fh:exist(dst, "f") then
+			if keep_files == 1 and not is_link then
+				-- Byte-identical regular file already in destination?
+				-- Then the source is redundant; remove it.
+				local same = execute_command("cmp -s " .. shq(src) .. " " .. shq(dst))
+				if same then
+					execute_command("rm -f " .. shq(src))
+					removed = removed + 1
+				else
+					io.write(string.format(
+						"logoupdater: keep_files=1, dest %q differs, leaving source in place\n",
+						dst))
+					skipped = skipped + 1
+				end
+			else
+				-- keep_files=0, or source is a symlink: overwrite/move.
+				execute_command("mv -f " .. shq(src) .. " " .. shq(dst))
+				if is_link then links_moved = links_moved + 1
+				else moved = moved + 1 end
+			end
+		else
+			execute_command("mv -f " .. shq(src) .. " " .. shq(dst))
+			if is_link then links_moved = links_moved + 1
+			else moved = moved + 1 end
+		end
+	end
+
+	-- Prune any now-empty subdirectories under old_dir. Use empty-only
+	-- delete so directories that still hold non-image content survive.
+	execute_command("find " .. shq(old_dir) ..
+		" -mindepth 1 -type d -empty -delete")
+	-- Try to remove the top-level old_dir itself if it is now empty; ignore
+	-- failure (rmdir refuses non-empty dirs, which is fine).
+	execute_command("rmdir " .. shq(old_dir) .. " 2>/dev/null || true")
+
+	io.write(string.format(
+		"logoupdater: migration done — files-moved=%d, links-moved=%d, "
+			.. "dup-removed=%d, skipped=%d\n",
+		moved, links_moved, removed, skipped))
+	if links_moved > 0 then
+		io.write("logoupdater: NOTE symlinks with absolute targets into the old "
+			.. "directory may now be broken. Re-run the in-plugin update to "
+			.. "regenerate them if any logos appear missing.\n")
+	end
+end
+
 logodir = resolve_logo_dir(neutrino_conf)
 
 locale = {}
