@@ -93,10 +93,28 @@ local function execute_command_streaming(command, on_line)
 	return rc == 0
 end
 
-local function count_files(path)
-	if not path or path == "" then return 0 end
-	if fh:exist(path, "d") ~= true then return 0 end
-	local p = io.popen("find " .. shq(path) .. " -type f 2>/dev/null | wc -l")
+-- Count items rsync will actually report during the real run by replaying
+-- the same command with --dry-run and counting itemized lines. This gives
+-- a max value that exactly matches the live tick stream.
+local function count_rsync_items(dry_cmd)
+	local p = io.popen(dry_cmd .. " 2>/dev/null")
+	if not p then return 0 end
+	local n = 0
+	for line in p:lines() do
+		if line:match("^[<>ch%.%*]") then n = n + 1 end
+	end
+	p:close()
+	return n
+end
+
+-- Approximate upper bound for the linker step: number of non-comment,
+-- non-empty entries in logo-links.db. Actual symlink count may be lower
+-- when the linker skips entries (e.g. logo .png missing).
+local function count_link_items(db_path)
+	if not db_path or db_path == "" then return 0 end
+	local p = io.popen(
+		"grep -cE '^[[:space:]]*[^#;[:space:]]' " .. shq(db_path)
+		.. " 2>/dev/null")
 	if not p then return 0 end
 	local s = p:read("*all") or ""
 	p:close()
@@ -483,16 +501,28 @@ function start_update()
 	local pw = cprogresswindow.new{ name = caption }
 	pw:paint{}
 
+	-- Global bar runs at 1000-units per step so we can update it
+	-- fractionally during streaming steps for smooth motion between
+	-- step boundaries.
 	local current = 0
+	local gmax = total * 1000
+	local function set_global(frac, txt)
+		-- frac in [0,1] within the current step
+		local prog = (current - 1) * 1000 + math.floor(frac * 1000)
+		if prog < 0 then prog = 0 end
+		if prog > gmax then prog = gmax end
+		pw:showGlobalStatus{ prog = prog, max = gmax, statusText = txt }
+	end
 	local function begin_step(key)
 		current = current + 1
 		local txt = locale[lang][key]
-		pw:showGlobalStatus{ prog = current, max = total, statusText = txt }
-		pw:showLocalStatus { prog = 0,       max = 100,   statusText = txt }
+		set_global(0, txt)
+		pw:showLocalStatus{ prog = 0, max = 100, statusText = txt }
 		return txt
 	end
 	local function finish_step(txt)
 		pw:showLocalStatus{ prog = 100, max = 100, statusText = txt }
+		set_global(1, txt)
 	end
 	local function fail(err_key)
 		pw:hide()
@@ -506,19 +536,21 @@ function start_update()
 	local delete = ""
 	if get_cfg_value("keep_files") == 0 then delete = "--delete " end
 
-	local function rsync_step(key, src_arg, src_for_count, err_key)
+	local function rsync_step(key, src_arg, err_key)
 		local stxt = begin_step(key)
-		local max = count_files(src_for_count)
+		local rsync_args = "rsync -rlpgoD --size-only -i " .. delete
+				.. src_arg .. " " .. shq(logodir)
+		local max = count_rsync_items(rsync_args .. " --dry-run")
 		if max < 1 then max = 1 end
 		local done = 0
-		local cmd = "rsync -rlpgoD --size-only -i " .. delete
-				.. src_arg .. " " .. shq(logodir)
-		local ok = execute_command_streaming(cmd, function(line)
-			-- rsync -i prints one itemized line per file
+		local ok = execute_command_streaming(rsync_args, function(line)
+			-- rsync -i prints one itemized line per touched file
 			if line:match("^[<>ch%.%*]") then
 				done = done + 1
 				if done > max then done = max end
-				pw:showLocalStatus{ prog = done, max = max, statusText = stxt }
+				pw:showLocalStatus{ prog = done, max = max,
+						statusText = stxt }
+				set_global(done / max, stxt)
 			end
 		end)
 		if not ok then fail(err_key); return false end
@@ -527,32 +559,46 @@ function start_update()
 	end
 
 	if not rsync_step("copy_logos",
-			shq(logo_source .. "/"), logo_source, "copy_failed") then
+			shq(logo_source .. "/"), "copy_failed") then
 		return
 	end
 
 	if get_cfg_value("eventlogos") == 1 then
 		if not rsync_step("copy_eventlogos",
-				shq(logo_event_source) .. "/*", logo_event_source,
-				"copy_failed") then
+				shq(logo_event_source) .. "/*", "copy_failed") then
 			return
 		end
 	end
 
 	if get_cfg_value("popuplogos") == 1 then
 		if not rsync_step("copy_popuplogos",
-				shq(logo_popup_source) .. "/*", logo_popup_source,
-				"copy_failed") then
+				shq(logo_popup_source) .. "/*", "copy_failed") then
 			return
 		end
 	end
 
 	-- todo: implement lua-filesystem to improve linking performance
 	txt = begin_step("link_logos")
-	if not execute_command(shq(logolinker) .. " "
-			.. shq(logodb) .. " " .. shq(logodir)) then
-		fail("link_failed"); return
-	end
+	-- Upstream logo-linker.sh ships the per-symlink echo commented out,
+	-- so the success path is silent. Unmute it on the downloaded copy
+	-- to feed the local bar.
+	execute_command("sed -i 's/^[[:space:]]*#echo \"linking/echo \"linking/' "
+			.. shq(logolinker))
+	local lmax = count_link_items(logodb)
+	if lmax < 1 then lmax = 1 end
+	local ldone = 0
+	local link_ok = execute_command_streaming(
+			shq(logolinker) .. " " .. shq(logodb) .. " " .. shq(logodir),
+			function(line)
+				if line:match("^linking ") then
+					ldone = ldone + 1
+					if ldone > lmax then ldone = lmax end
+					pw:showLocalStatus{ prog = ldone, max = lmax,
+							statusText = txt }
+					set_global(ldone / lmax, txt)
+				end
+			end)
+	if not link_ok then fail("link_failed"); return end
 	finish_step(txt)
 
 	txt = begin_step("cleanup")
