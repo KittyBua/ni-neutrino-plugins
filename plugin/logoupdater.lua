@@ -73,6 +73,36 @@ local function execute_command(command)
 	return ok, stdout, stderr
 end
 
+-- Stream command output line-by-line for live progress feedback.
+-- Exit code is captured via a __RC=$? sentinel because io.popen :close()
+-- semantics differ between Lua 5.1 and 5.2+.
+local function execute_command_streaming(command, on_line)
+	io.write(string.format("execute: %s\n", command))
+	local p = io.popen(command .. " 2>&1; echo __RC=$?", "r")
+	if not p then return false end
+	local rc = -1
+	for line in p:lines() do
+		local m = line:match("^__RC=(%-?%d+)$")
+		if m then
+			rc = tonumber(m)
+		elseif on_line then
+			on_line(line)
+		end
+	end
+	p:close()
+	return rc == 0
+end
+
+local function count_files(path)
+	if not path or path == "" then return 0 end
+	if fh:exist(path, "d") ~= true then return 0 end
+	local p = io.popen("find " .. shq(path) .. " -type f 2>/dev/null | wc -l")
+	if not p then return 0 end
+	local s = p:read("*all") or ""
+	p:close()
+	return tonumber(s) or 0
+end
+
 local function sleep(sec)
 	if has_posix and posix.sleep then
 		posix.sleep(sec)
@@ -267,6 +297,7 @@ cfg_event = "Event Logos installieren",
 cfg_git = "Git für den Download verwenden",
 cfg_keep = "Bestehende Dateien behalten",
 msg_end = "Logos wurden erfolgreich nach %s installiert",
+confirm_text = "Logos werden installiert nach:\n\n%s\n\nFortfahren?",
 }
 locale["english"] = {
 fetch_source = "The latest logos are getting downloaded.",
@@ -288,6 +319,7 @@ cfg_event = "Install event logos",
 cfg_git = "Use git for downloading",
 cfg_keep = "Keep existing files",
 msg_end = "Logos were successfully installed into %s",
+confirm_text = "Logos will be installed into:\n\n%s\n\nContinue?",
 }
 
 local function create_logoupdater_cfg()
@@ -399,22 +431,7 @@ local function show_error(msg)
 	hb:hide()
 end
 
-local function step(text, command, err_text)
-	local hb = hintbox.new { title = caption, icon = "settings", text = text }
-	hb:paint()
-	local ok = execute_command(command)
-	sleep(1)
-	hb:hide()
-	if not ok then
-		show_error(err_text)
-		return false
-	end
-	return true
-end
-
 local function download_logos()
-	local hb = hintbox.new { title = caption, icon = "settings", text = locale[lang].fetch_source }
-	hb:paint()
 	local ok
 	if get_cfg_value("use_git") == 1 then
 		ok = execute_command("git clone " .. logo_url .. " " .. shq(tmp))
@@ -434,7 +451,6 @@ local function download_logos()
 			execute_command("rm -rf " .. shq(zip))
 		end
 	end
-	hb:hide()
 	if not ok then
 		show_error(locale[lang].fetch_failed)
 		return false
@@ -444,42 +460,108 @@ end
 
 function start_update()
 	chooser:hide()
+
+	local res = messagebox.exec{
+		title = caption,
+		icon = "settings",
+		text = string.format(locale[lang].confirm_text, logodir),
+		buttons = {"yes", "no"},
+		default = "yes",
+		timeout = -1,
+	}
+	if res ~= "yes" then return end
+
+	local total = 2 -- fetch + copy_logos always run
+	if get_cfg_value("eventlogos") == 1 then total = total + 1 end
+	if get_cfg_value("popuplogos") == 1 then total = total + 1 end
+	total = total + 2 -- link + cleanup
+
 	if isdir(tmp) then
 		execute_command("rm -rf " .. shq(tmp))
 	end
 
-	if not download_logos() then return end
+	local pw = cprogresswindow.new{ name = caption }
+	pw:paint{}
+
+	local current = 0
+	local function begin_step(key)
+		current = current + 1
+		local txt = locale[lang][key]
+		pw:showGlobalStatus{ prog = current, max = total, statusText = txt }
+		pw:showLocalStatus { prog = 0,       max = 100,   statusText = txt }
+		return txt
+	end
+	local function finish_step(txt)
+		pw:showLocalStatus{ prog = 100, max = 100, statusText = txt }
+	end
+	local function fail(err_key)
+		pw:hide()
+		show_error(locale[lang][err_key])
+	end
+
+	local txt = begin_step("fetch_source")
+	if not download_logos() then pw:hide(); return end
+	finish_step(txt)
 
 	local delete = ""
 	if get_cfg_value("keep_files") == 0 then delete = "--delete " end
 
-	if not step(locale[lang].copy_logos,
-			"rsync -rlpgoD --size-only " .. delete
-				.. shq(logo_source .. "/") .. " " .. shq(logodir),
-			locale[lang].copy_failed) then return end
+	local function rsync_step(key, src_arg, src_for_count, err_key)
+		local stxt = begin_step(key)
+		local max = count_files(src_for_count)
+		if max < 1 then max = 1 end
+		local done = 0
+		local cmd = "rsync -rlpgoD --size-only -i " .. delete
+				.. src_arg .. " " .. shq(logodir)
+		local ok = execute_command_streaming(cmd, function(line)
+			-- rsync -i prints one itemized line per file
+			if line:match("^[<>ch%.%*]") then
+				done = done + 1
+				if done > max then done = max end
+				pw:showLocalStatus{ prog = done, max = max, statusText = stxt }
+			end
+		end)
+		if not ok then fail(err_key); return false end
+		finish_step(stxt)
+		return true
+	end
+
+	if not rsync_step("copy_logos",
+			shq(logo_source .. "/"), logo_source, "copy_failed") then
+		return
+	end
 
 	if get_cfg_value("eventlogos") == 1 then
-		if not step(locale[lang].copy_eventlogos,
-				"rsync -rlpgoD --size-only " .. delete
-					.. shq(logo_event_source) .. "/* " .. shq(logodir),
-				locale[lang].copy_failed) then return end
+		if not rsync_step("copy_eventlogos",
+				shq(logo_event_source) .. "/*", logo_event_source,
+				"copy_failed") then
+			return
+		end
 	end
 
 	if get_cfg_value("popuplogos") == 1 then
-		if not step(locale[lang].copy_popuplogos,
-				"rsync -rlpgoD --size-only " .. delete
-					.. shq(logo_popup_source) .. "/* " .. shq(logodir),
-				locale[lang].copy_failed) then return end
+		if not rsync_step("copy_popuplogos",
+				shq(logo_popup_source) .. "/*", logo_popup_source,
+				"copy_failed") then
+			return
+		end
 	end
 
 	-- todo: implement lua-filesystem to improve linking performance
-	if not step(locale[lang].link_logos,
-			shq(logolinker) .. " " .. shq(logodb) .. " " .. shq(logodir),
-			locale[lang].link_failed) then return end
+	txt = begin_step("link_logos")
+	if not execute_command(shq(logolinker) .. " "
+			.. shq(logodb) .. " " .. shq(logodir)) then
+		fail("link_failed"); return
+	end
+	finish_step(txt)
 
-	if not step(locale[lang].cleanup,
-			"rm -rf " .. shq(tmp),
-			locale[lang].cleanup_failed) then return end
+	txt = begin_step("cleanup")
+	if not execute_command("rm -rf " .. shq(tmp)) then
+		fail("cleanup_failed"); return
+	end
+	finish_step(txt)
+
+	pw:hide()
 
 	messagebox.exec{ title = caption,
 		text = string.format(locale[lang].msg_end, logodir),
