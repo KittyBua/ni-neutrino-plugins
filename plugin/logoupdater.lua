@@ -266,7 +266,7 @@ cfg_popup = "Popup Logos installieren",
 cfg_event = "Event Logos installieren",
 cfg_git = "Git für den Download verwenden",
 cfg_keep = "Bestehende Dateien behalten",
-msg_end = "Logos wurden erfolgreich nach " .. logodir .. " installiert",
+msg_end = "Logos wurden erfolgreich nach %s installiert",
 }
 locale["english"] = {
 fetch_source = "The latest logos are getting downloaded.",
@@ -287,7 +287,7 @@ cfg_popup = "Install popup logos",
 cfg_event = "Install event logos",
 cfg_git = "Use git for downloading",
 cfg_keep = "Keep existing files",
-msg_end = "Logos were successfully installed into " .. logodir,
+msg_end = "Logos were successfully installed into %s",
 }
 
 local function create_logoupdater_cfg()
@@ -481,7 +481,9 @@ function start_update()
 			"rm -rf " .. shq(tmp),
 			locale[lang].cleanup_failed) then return end
 
-	messagebox.exec{ title = caption, text = locale[lang].msg_end, buttons = {"ok"}, timeout = 6 }
+	messagebox.exec{ title = caption,
+		text = string.format(locale[lang].msg_end, logodir),
+		buttons = {"ok"}, timeout = 6 }
 end
 
 local function write_cfg(_, v, key)
