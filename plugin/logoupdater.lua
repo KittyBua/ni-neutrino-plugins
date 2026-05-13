@@ -368,6 +368,24 @@ local function set_cfg_value(key, value)
 	return true
 end
 
+-- Reconcile the resolved logo dir with the path used on the previous run.
+-- The plugin never exposes a path setting of its own — logodir always
+-- comes from neutrino.conf. last_logodir is internal bookkeeping so we
+-- can move orphaned image files when the user changes the Neutrino path.
+local last_logodir = get_cfg_string("last_logodir", "")
+if last_logodir == "" then
+	-- First run after the update introducing last_logodir — no prior
+	-- path recorded. Just remember the current path; never speculatively
+	-- migrate, because we have no trustworthy "previous" state.
+	set_cfg_value("last_logodir", logodir)
+elseif last_logodir ~= logodir then
+	io.write(string.format(
+		"logoupdater: logo dir changed (%q -> %q), running migration\n",
+		last_logodir, logodir))
+	migrate_logos(last_logodir, logodir, get_cfg_value("keep_files"))
+	set_cfg_value("last_logodir", logodir)
+end
+
 if get_cfg_value("use_git") == 1 then
 	logo_url = "https://github.com/neutrino-images/ni-logo-stuff"
 else
