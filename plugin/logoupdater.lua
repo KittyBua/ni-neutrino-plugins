@@ -183,6 +183,7 @@ local function create_logoupdater_cfg()
 	f:write("popuplogos=0\n")
 	f:write("use_git=0\n")
 	f:write("keep_files=0\n")
+	f:write("last_logodir=\n")
 	f:close()
 	return true
 end
@@ -205,6 +206,44 @@ local function get_cfg_value(str)
 		end
 	end
 	return value
+end
+
+local function get_cfg_string(str, default)
+	if not exists(logoupdater_cfg) then
+		return default or ""
+	end
+	for line in io.lines(logoupdater_cfg) do
+		if line:match("^" .. str .. "=") then
+			local _, j = string.find(line, str .. "=")
+			return string.sub(line, j + 1, #line)
+		end
+	end
+	return default or ""
+end
+
+local function set_cfg_value(key, value)
+	local lines = {}
+	local found = false
+	if exists(logoupdater_cfg) then
+		for line in io.lines(logoupdater_cfg) do
+			if line:match("^" .. key .. "=") then
+				line = key .. "=" .. tostring(value)
+				found = true
+			end
+			table.insert(lines, line)
+		end
+	end
+	if not found then
+		table.insert(lines, key .. "=" .. tostring(value))
+	end
+	local f = io.open(logoupdater_cfg, "w")
+	if not f then
+		io.write(string.format("ERROR: unable to open %s for writing\n", logoupdater_cfg))
+		return false
+	end
+	for _, l in ipairs(lines) do f:write(l, "\n") end
+	f:close()
+	return true
 end
 
 if get_cfg_value("use_git") == 1 then
