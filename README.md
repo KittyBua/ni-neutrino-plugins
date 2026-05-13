@@ -28,11 +28,21 @@ Configuration file:
 
 - Path: `/var/tuxbox/config/logoupdater.cfg`
 - Keys: `eventlogos`, `popuplogos`, `use_git`, `keep_files`
+- Internal bookkeeping (do not edit): `last_logodir`
 
 Destination logo directory:
 
-- Read from `neutrino.conf` key `logo_hdd_dir`
-- Fallback: `/share/tuxbox/neutrino/icons`
+- Read from `neutrino.conf` key `logo_hdd_dir` on every plugin launch.
+  A path change in Neutrino takes effect the next time the plugin is
+  opened, provided Neutrino has persisted the setting (save Neutrino
+  settings or exit/restart Neutrino to flush).
+- Fallback: `/share/tuxbox/neutrino/icons`.
+- When the path changes between runs, the plugin moves image files
+  (`*.png`, `*.jpg`, `*.jpeg`, `*.gif`) and their symlinks from the
+  previous location into the new one so the old storage isn't wasted.
+  Symlinks pointing to absolute paths inside the old directory may end
+  up broken; if any logos appear missing after a path change, run the
+  in-plugin update to regenerate the per-channel mapping.
 
 ## Build And Install
 
