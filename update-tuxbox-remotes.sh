@@ -7,3 +7,4 @@ for plugin in $REPLIST; do
 	git subtree pull --prefix=$plugin https://github.com/tuxbox-neutrino/plugin-$plugin.git master || exit 1
 done
 git subtree pull --prefix=scripts-lua/plugins/mediathek https://github.com/tuxbox-neutrino/plugin-lua-neutrino-mediathek.git master
+git subtree pull --prefix=scripts-lua/plugins/logoupdater https://github.com/tuxbox-neutrino/plugin-lua-logoupdater.git master
