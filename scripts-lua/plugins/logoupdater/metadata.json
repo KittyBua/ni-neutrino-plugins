@@ -1,0 +1,17 @@
+{
+  "name": "lua-logoupdater",
+  "version": "1.0.0",
+  "description": "Neutrino Lua plugin for channel logo updates",
+  "license": "BSD-2-Clause",
+  "runtime-deps": [
+    "neutrino-core",
+    "lua >= 5.2",
+    "curl",
+    "rsync",
+    "unzip"
+  ],
+  "source": "https://github.com/tuxbox-neutrino/plugin-lua-logoupdater",
+  "maintainers": [
+    "Tuxbox/Neutrino contributors"
+  ]
+}
