@@ -1,7 +1,27 @@
-AC_INIT([neutrino-plugins],[0.0.1],[https://www.neutrino-images.de])
+# explicit defines for calendar version
+define(ver_major, 2026)
+define(ver_minor, 05)
+
+define(ver_git, m4_esyscmd([
+	GITBRANCH=$(git rev-parse --abbrev-ref HEAD);
+	GITDESCRIBE=$(git describe --always --tags --dirty);
+	printf "$GITDESCRIBE $GITBRANCH"
+]))
+
+define(ver_date, m4_esyscmd([
+	BUILTDATE=$(date);
+	printf "$BUILTDATE"
+]))
+
+AC_INIT([neutrino-plugins],[ver_major.ver_minor],[https://www.neutrino-images.de])
 AM_INIT_AUTOMAKE([foreign])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 AC_GNU_SOURCE
+
+AC_DEFINE(PACKAGE_VERSION_MAJOR, ver_major, [Major version number])
+AC_DEFINE(PACKAGE_VERSION_MINOR, ver_minor, [Minor version number])
+AC_DEFINE(PACKAGE_VERSION_GIT, "ver_git", [internal vcs version info])
+AC_DEFINE(PACKAGE_VERSION_DATE, "ver_date", [internal built date])
 
 TUXBOX_APPS
 TUXBOX_APPS_DIRECTORY
