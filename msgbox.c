@@ -537,6 +537,9 @@ FILE *fh;
 
 		//init framebuffer before 1st scale2res
 		fb = open(FB_DEVICE, O_RDWR);
+		if(fb == -1 && strcmp(FB_DEVICE, FB_DEVICE_FALLBACK))
+			fb = open(FB_DEVICE_FALLBACK, O_RDWR);
+
 		if(fb == -1)
 		{
 			perror(__plugin__ " <open framebuffer device>");

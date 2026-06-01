@@ -2,7 +2,7 @@ AM_CPPFLAGS =  \
 	@FREETYPE_CFLAGS@ \
 	-I$(top_srcdir)/include
 
-noinst_PROGRAMS = msgbox
+bin_PROGRAMS = msgbox
 
 msgbox_SOURCES = \
 	msgbox.c \
@@ -17,9 +17,5 @@ msgbox_SOURCES = \
 	png_helper.cpp
 
 msgbox_LDADD = \
-	@FREETYPE_LIBS@
-
-install-exec-local:
-	install -d $(DESTDIR)/usr/bin
-	install -m 0755 msgbox $(DESTDIR)/usr/bin/msgbox
-
+	@FREETYPE_LIBS@ \
+	@PNG_LIBS@
