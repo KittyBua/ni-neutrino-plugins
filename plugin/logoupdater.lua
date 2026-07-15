@@ -47,7 +47,14 @@ lang = neutrino_conf:getString("language", "english")
 timing_menu = neutrino_conf:getInt32("timing.menu", 240)
 osd_resolution = neutrino_conf:getInt32("osd_resolution", 1)
 
-caption = "Logo Updater"
+-- Plugin version (calendar year.month.patch); the patch is bumped by CI
+-- from the v{year}.{month} anchor tag. tagit rewrites the three numbers.
+local ver_major = 2026
+local ver_minor = 7
+local ver_micro = 0
+local version = ver_major .. "." .. ver_minor .. "." .. ver_micro
+
+caption = "Logo Updater " .. version
 
 local function shq(s)
 	return ("%q"):format(tostring(s or ""))
@@ -685,6 +692,7 @@ function main()
 	local chooser_y = SCREEN.OFF_Y + (((SCREEN.END_Y - SCREEN.OFF_Y) - chooser_dy) / 2)
 
 	chooser = cwindow.new {
+		name = caption,
 		x = chooser_x,
 		y = chooser_y,
 		dx = chooser_dx,

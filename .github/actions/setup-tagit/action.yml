@@ -1,0 +1,84 @@
+name: Setup tagit
+description: Install tagit.py (pinned), configure git identity, and parse logoupdater.lua version
+
+inputs:
+  git_user_name:
+    description: Deprecated; git author and committer are fixed for workflow commits
+    required: false
+    default: ""
+  git_user_email:
+    description: Deprecated; git author and committer are fixed for workflow commits
+    required: false
+    default: ""
+
+outputs:
+  ver_major:
+    description: Major version from logoupdater.lua
+    value: ${{ steps.parse-version.outputs.ver_major }}
+  ver_minor:
+    description: Minor version from logoupdater.lua
+    value: ${{ steps.parse-version.outputs.ver_minor }}
+  ver_micro:
+    description: Micro/patch version from logoupdater.lua
+    value: ${{ steps.parse-version.outputs.ver_micro }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies and download tagit.py
+      shell: bash
+      env:
+        # Pin to a specific commit for supply-chain safety
+        TAGIT_COMMIT: a2411acdeecff609d1cf11d97d788f2de8bb339f
+        TAGIT_SHA256: cb62b118a3b2aaa6beab87243952ed2f9b17a1f976a4ecd98de85bb7930998e4
+      run: |
+        python -m pip install --upgrade pip
+        pip install GitPython
+        curl -fsSL "https://raw.githubusercontent.com/dbt1/tagit/${TAGIT_COMMIT}/tagit.py" \
+          -o /tmp/tagit.py
+        echo "${TAGIT_SHA256}  /tmp/tagit.py" | sha256sum -c -
+        chmod +x /tmp/tagit.py
+
+    - name: Configure git identity
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        git_user_name="GitHub Actions"
+        git_user_email="actions@github.com"
+
+        git config user.name "$git_user_name"
+        git config user.email "$git_user_email"
+
+        {
+          echo "GIT_AUTHOR_NAME=$git_user_name"
+          echo "GIT_AUTHOR_EMAIL=$git_user_email"
+          echo "GIT_COMMITTER_NAME=$git_user_name"
+          echo "GIT_COMMITTER_EMAIL=$git_user_email"
+        } >> "$GITHUB_ENV"
+
+    - name: Parse logoupdater.lua version
+      id: parse-version
+      shell: bash
+      run: |
+        set -euo pipefail
+        ver_major=$(awk '/^local ver_major/ {print $NF}' plugin/logoupdater.lua)
+        ver_minor=$(awk '/^local ver_minor/ {print $NF}' plugin/logoupdater.lua)
+        ver_micro=$(awk '/^local ver_micro/ {print $NF}' plugin/logoupdater.lua)
+
+        for v in ver_major ver_minor ver_micro; do
+          if ! [[ ${!v} =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid ${v} value: '${!v}'"
+            exit 1
+          fi
+        done
+
+        echo "ver_major=${ver_major}" >> "$GITHUB_OUTPUT"
+        echo "ver_minor=${ver_minor}" >> "$GITHUB_OUTPUT"
+        echo "ver_micro=${ver_micro}" >> "$GITHUB_OUTPUT"
+        echo "Parsed version: ${ver_major}.${ver_minor}.${ver_micro}"

@@ -1,0 +1,146 @@
+name: Plugin Version Bump
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - ".github/**"
+
+concurrency:
+  group: plugin-version-bump-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Setup tagit
+        id: setup
+        uses: ./.github/actions/setup-tagit
+
+      - name: Bump or start monthly version line
+        run: |
+          set -euo pipefail
+
+          ver_major="${{ steps.setup.outputs.ver_major }}"
+          ver_minor="${{ steps.setup.outputs.ver_minor }}"
+          ver_micro="${{ steps.setup.outputs.ver_micro }}"
+
+          # Calendar version line: major = year, minor = month (non-padded 1..12).
+          cur_year="$(date -u +%Y)"
+          cur_month="$(date -u +%-m)"
+
+          before_head="$(git rev-parse HEAD)"
+
+          # Rewrite the three local ver_* lines in logoupdater.lua without letting
+          # tagit tag/commit; /tmp is not on PATH, so call python explicitly.
+          write_version() {
+            python /tmp/tagit.py \
+              -f plugin/logoupdater.lua \
+              --scheme-file tagit-config.json \
+              --version-mode increment \
+              --tag-format "v{major}.{minor}.{patch}" \
+              --major "$1" \
+              --minor "$2" \
+              --patch "$3" \
+              --no-tag
+            after_head="$(git rev-parse HEAD)"
+            if [ "$after_head" != "$before_head" ]; then
+              git reset --soft "$before_head"
+            fi
+          }
+
+          # Sync metadata.json to $1 (already-computed ver). Format-preserving sed,
+          # but count/validate JSON-aware (heredoc body flush at run-block indent).
+          sync_metadata() {
+            ver="$1"
+            python3 - <<'PY' || { echo "::error::metadata.json: ungueltig / kein bzw. mehrfaches N.N.N version-Feld"; exit 1; }
+          import json, re, sys
+          raw = open("metadata.json").read()
+          json.loads(raw)                       # Syntax
+          n = 0
+          def hook(pairs):
+              global n
+              n += sum(1 for k, _ in pairs if k == "version")
+              return dict(pairs)
+          v = json.loads(raw, object_pairs_hook=hook).get("version", "")
+          sys.exit(0 if n == 1 and isinstance(v, str) and re.fullmatch(r"\d+\.\d+\.\d+", v) else 1)
+          PY
+            sed -i -E 's/("version"[[:space:]]*:[[:space:]]*")[0-9]+\.[0-9]+\.[0-9]+(")/\1'"${ver}"'\2/' metadata.json
+            new=$(python3 -c 'import json;print(json.load(open("metadata.json"))["version"])') \
+              || { echo "::error::metadata.json nach sed ungueltig"; exit 1; }
+            lua_ver=$(awk '/^local ver_major/{a=$NF}/^local ver_minor/{b=$NF}/^local ver_micro/{c=$NF}END{print a"."b"."c}' plugin/logoupdater.lua)
+            [ "$new" = "$ver" ] && [ "$lua_ver" = "$ver" ] || { echo "::error::Mismatch lua=$lua_ver json=$new soll=$ver"; exit 1; }
+          }
+
+          if [ "$ver_major" != "$cur_year" ] || [ "$ver_minor" != "$cur_month" ]; then
+            # A new calendar month (or year) started: begin a fresh line, atomically.
+            ver="${cur_year}.${cur_month}.0"
+            new_tag="v${cur_year}.${cur_month}"
+            echo "Starting new version line ${new_tag} (was ${ver_major}.${ver_minor}.${ver_micro})"
+
+            write_version "$cur_year" "$cur_month" 0
+            sync_metadata "$ver"
+
+            git add plugin/logoupdater.lua metadata.json
+            git commit -m "build (ci): start ${new_tag} version line [skip ci]"
+            git tag -a "$new_tag" -m "Start ${new_tag} version line"
+            [ "$(git rev-parse "${new_tag}^{commit}")" = "$(git rev-parse HEAD)" ] \
+              || { echo "::error::Tag zeigt nicht auf HEAD"; exit 1; }
+            # Atomic: master never lands while the anchor push is missing.
+            git push --atomic origin HEAD:master "$new_tag"
+          else
+            # Same month: validate the line anchor strictly, then patch = commits+1.
+            anchor="v${ver_major}.${ver_minor}"
+            git rev-parse -q --verify "refs/tags/${anchor}" >/dev/null || { echo "::error::Anchor ${anchor} fehlt"; exit 1; }
+            [ "$(git cat-file -t "$anchor")" = "tag" ] || { echo "::error::Anchor nicht annotiert"; exit 1; }
+            ac=$(git rev-parse "${anchor}^{commit}")
+            git merge-base --is-ancestor "$ac" HEAD || { echo "::error::Anchor nicht von HEAD erreichbar"; exit 1; }
+
+            # Anchor content must be exactly major/minor/.0 in both files.
+            read -r am an ap < <(git show "${ac}:plugin/logoupdater.lua" \
+              | awk '/^local ver_major/{a=$NF}/^local ver_minor/{b=$NF}/^local ver_micro/{c=$NF}END{print a,b,c}')
+            [ "$am" = "$ver_major" ] && [ "$an" = "$ver_minor" ] && [ "$ap" = "0" ] \
+              || { echo "::error::Anchor-Lua != ${ver_major}.${ver_minor}.0 (got ${am}.${an}.${ap})"; exit 1; }
+            amj=$(git show "${ac}:metadata.json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["version"])') \
+              || { echo "::error::Anchor-metadata.json ungueltig"; exit 1; }
+            [ "$amj" = "${ver_major}.${ver_minor}.0" ] || { echo "::error::Anchor-metadata != ${ver_major}.${ver_minor}.0 (got ${amj})"; exit 1; }
+
+            # Local anchor target must equal the published tag target.
+            rt=$(git ls-remote origin "refs/tags/${anchor}^{}" | awk '{print $1}') \
+              || { echo "::error::ls-remote fehlgeschlagen"; exit 1; }
+            [ -n "$rt" ] && [ "$rt" = "$ac" ] || { echo "::error::Remote-Tag ${anchor} != ${ac} (got '${rt}')"; exit 1; }
+
+            commit_count=$(git rev-list --count "${anchor}..HEAD")
+            ver="${ver_major}.${ver_minor}.$((commit_count + 1))"
+            echo "Bumping from ${ver_major}.${ver_minor}.${ver_micro} to ${ver}"
+
+            write_version "$ver_major" "$ver_minor" "$((commit_count + 1))"
+            sync_metadata "$ver"
+
+            git add plugin/logoupdater.lua metadata.json
+            git diff --cached --quiet && { echo "keine Aenderung"; exit 0; }
+            git commit -m "build (ci): bump plugin version [skip ci]"
+
+            # concurrency serializes runs, not developer pushes: retry against non-ff.
+            pushed=0
+            for _ in 1 2 3; do
+              git fetch origin master \
+                && git rebase origin/master \
+                && git push origin HEAD:master && { pushed=1; break; } \
+                || git rebase --abort 2>/dev/null || true
+            done
+            [ "$pushed" = 1 ] || { echo "::error::Push nach 3 Versuchen fehlgeschlagen (non-ff)"; exit 1; }
+          fi

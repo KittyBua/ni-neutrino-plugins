@@ -1,0 +1,15 @@
+[
+  {
+    "name": "lua_ver_micro_is_patch",
+    "patterns": {
+      "ver_major": "local ver_major\\s*=\\s*\\d+",
+      "ver_minor": "local ver_minor\\s*=\\s*\\d+",
+      "ver_micro": "local ver_micro\\s*=\\s*\\d+"
+    },
+    "replacements": {
+      "ver_major": "local ver_major = {major}",
+      "ver_minor": "local ver_minor = {minor}",
+      "ver_micro": "local ver_micro = {patch}"
+    }
+  }
+]
