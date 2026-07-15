@@ -37,12 +37,12 @@ logo_popup_source = tmp .. "/logos-popup"
 logolinker = tmp .. "/logo-links/logo-linker.sh"
 logo_intro = tmp .. "/logo-intro/lua-version"
 logodb = tmp .. "/logo-links/logo-links.db"
-logoupdater_cfg = "/var/tuxbox/config/logoupdater.cfg"
+logoupdater_cfg = DIR['DATADIR_VAR'] .. "/config/logoupdater.cfg"
 
 local has_posix, posix = pcall(require, "posix")
 
 neutrino_conf = configfile.new()
-neutrino_conf:loadConfig("/etc/neutrino/config/neutrino.conf")
+neutrino_conf:loadConfig(DIR['CONFIGDIR'] .. "/neutrino.conf")
 lang = neutrino_conf:getString("language", "english")
 timing_menu = neutrino_conf:getInt32("timing.menu", 240)
 osd_resolution = neutrino_conf:getInt32("osd_resolution", 1)
@@ -162,8 +162,8 @@ local function resolve_logo_dir(conf)
 	local neutrino_path = conf:getString("logo_hdd_dir", "")
 	local candidates = {
 		{ source = "neutrino.conf (logo_hdd_dir)", path = neutrino_path },
-		{ source = "LOGODIR_VAR",                  path = LOGODIR_VAR },
-		{ source = "LOGODIR",                      path = LOGODIR },
+		{ source = "LOGODIR_VAR",                  path = DIR['LOGODIR_VAR'] },
+		{ source = "LOGODIR",                      path = DIR['LOGODIR'] },
 	}
 	for _, c in ipairs(candidates) do
 		if c.path and c.path ~= "" then
@@ -180,8 +180,8 @@ local function resolve_logo_dir(conf)
 		end
 	end
 	io.write(string.format(
-		"logoupdater: WARNING falling back to hardcoded %q\n", LOGODIR))
-	return LOGODIR
+		"logoupdater: WARNING falling back to hardcoded %q\n", DIR['LOGODIR']))
+	return DIR['LOGODIR']
 end
 
 -- Migrates image files AND image-named symlinks from old_dir to new_dir
@@ -205,7 +205,7 @@ end
 local function migrate_logos(old_dir, new_dir, keep_files)
 	if not old_dir or old_dir == "" then return end
 	if old_dir == new_dir then return end
-	if old_dir == LOGODIR or old_dir == LOGODIR_VAR then
+	if old_dir == DIR['LOGODIR'] or old_dir == DIR['LOGODIR_VAR'] then
 		io.write(string.format(
 			"logoupdater: skipping migration from system default %q\n", old_dir))
 		return
@@ -339,6 +339,10 @@ cfg_keep = "Keep existing files",
 msg_end = "Logos were successfully installed into %s",
 confirm_text = "Logos will be installed into:\n\n%s\n\nContinue?",
 }
+
+-- The plugin only ships deutsch/english; fall back so a box configured with
+-- any other language (nederlands, slovak, ...) does not crash on locale[lang].
+if not locale[lang] then lang = "english" end
 
 local function create_logoupdater_cfg()
 	local cfg_dir = string.match(logoupdater_cfg, "(.+)/[^/]+$")
