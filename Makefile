@@ -106,7 +106,6 @@ fi; \
 if [ -n "$$dst" ]; then \
 	$(MKDIR) "$$dst"; \
 	$(RMR) "$$dst/$$lua_dst" "$$dst/$$cfg_dst" "$$dst/$$hint_dst" "$$dst/$$dir_dst"; \
-	$(MKDIR) "$$dst/$$dir_dst"; \
 	if [ -n "$$rel_prefix" ]; then \
 		$(LN) "$$rel_prefix/$$lua_dst" "$$dst/$$lua_dst"; \
 		$(LN) "$$rel_prefix/$$cfg_dst" "$$dst/$$cfg_dst"; \
