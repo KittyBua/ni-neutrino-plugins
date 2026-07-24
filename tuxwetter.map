@@ -1,0 +1,8 @@
+{
+  global:
+    plugin_init;
+    plugin_exec;
+    plugin_del;
+  local:
+    *;
+};

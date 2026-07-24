@@ -1,0 +1,24 @@
+{
+  "name": "tuxwetter-neutrino",
+  "version": "0.1.0-poc",
+  "description": "Tuxwetter Plugin - Neutrino-API Port (Proof of Concept)",
+  "author": "Neutrino Development Team <noreply@tuxbox-neutrino.org>",
+  "license": "GPL-2.0-or-later",
+  "type": "standalone",
+  "phase": "1-poc",
+  "dependencies": [
+    "libfreetype2",
+    "libcurl",
+    "libpng",
+    "libjpeg",
+    "giflib"
+  ],
+  "neutrino_min_version": "3.2.0",
+  "repository": "https://github.com/tuxbox-neutrino/neutrino-make",
+  "status": "experimental",
+  "notes": [
+    "Phase 1: CFrameBuffer + g_RCInput PoC",
+    "Zeigt statisches Testbild und Input-Handling",
+    "Noch keine Wettergrafiken oder Downloads"
+  ]
+}

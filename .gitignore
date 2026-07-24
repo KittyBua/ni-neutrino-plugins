@@ -1,10 +1,14 @@
 # automake stuff
-Makefile
+# NOTE: Makefile is deliberately NOT ignored - it is the maintained,
+# hand-written build of this plugin, not an automake artefact.
 autom4te.cache
 *.in
 aclocal.m4
 compile
 config.*
+# ...but config.h is ours: the fallback config used only when no configured
+# Neutrino build tree is available. Neutrino's own config.h takes precedence.
+!config.h
 configure
 depcomp
 install-sh
@@ -16,6 +20,10 @@ stamp-h1
 README
 COPYING
 INSTALL
+
+# build artifacts (objects are built in-tree)
+*.o
+*.so
 
 # system
 *~
