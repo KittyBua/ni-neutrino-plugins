@@ -51,8 +51,20 @@ function _loadConfig()
 		end
 		return value
 	end
+	-- Prefer the icon directories Neutrino reports for the running build
+	-- (DIR.ICONSDIR / DIR.ICONSDIR_VAR). On a set-top box these equal the
+	-- classic /usr/share/tuxbox/neutrino/icons/ path, but on the generic-pc
+	-- build the icons live under the runtime prefix, so the hard-coded path
+	-- resolves to nothing. Falling back to the build-provided path here makes
+	-- the '@ICONSDIR@' placeholder (or an old persisted default) auto-heal.
 	local defaultSystemIconPath = '/usr/share/tuxbox/neutrino/icons/'
 	local defaultUserIconPath = '/var/tuxbox/icons/'
+	if DIR ~= nil and DIR.ICONSDIR ~= nil and DIR.ICONSDIR ~= '' then
+		defaultSystemIconPath = DIR.ICONSDIR
+	end
+	if DIR ~= nil and DIR.ICONSDIR_VAR ~= nil and DIR.ICONSDIR_VAR ~= '' then
+		defaultUserIconPath = DIR.ICONSDIR_VAR
+	end
 	conf.iconSystemPath = normalizeIconPath(conf.iconSystemPath, defaultSystemIconPath, '@ICONSDIR@')
 	conf.iconUserPath = normalizeIconPath(conf.iconUserPath, defaultUserIconPath, '@ICONSDIR_VAR@')
 	if conf.apiBaseUrl == nil or conf.apiBaseUrl == '' then
