@@ -51,7 +51,7 @@ osd_resolution = neutrino_conf:getInt32("osd_resolution", 1)
 -- from the v{year}.{month} anchor tag. tagit rewrites the three numbers.
 local ver_major = 2026
 local ver_minor = 7
-local ver_micro = 0
+local ver_micro = 2
 local version = ver_major .. "." .. ver_minor .. "." .. ver_micro
 
 caption = "Logo Updater " .. version
