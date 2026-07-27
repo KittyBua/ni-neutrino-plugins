@@ -46,40 +46,39 @@ jobs:
     needs: package
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Configure Git identity
+      - name: Tag the current VERSION (manual release; no bump)
         run: |
-          git config --global user.email "dbt@novatux.de"
-          git config --global user.name "Thilo Graf"
+          set -euo pipefail
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+          # Tagging is manual and never bumps: version-bump.yaml already keeps
+          # neutrino-mediathek/VERSION current on every push. This job just cuts
+          # an annotated release tag from whatever VERSION currently holds.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Install Tagit
-        run: |
-          python -m pip install --upgrade pip
-          pip install GitPython
-          curl -o /tmp/tagit.py https://raw.githubusercontent.com/dbt1/tagit/master/tagit.py
-          chmod +x /tmp/tagit.py
+          v="$(tr -d ' \n' < neutrino-mediathek/VERSION)"
+          if ! [[ "$v" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected VERSION content: '${v}'"
+            exit 1
+          fi
 
-      - name: Run Tagit
-        run: |
-          git status --short
-          python /tmp/tagit.py -f neutrino-mediathek/VERSION --tag-format "v{major}.{minor}.{patch}" --version-mode increment --scheme-file .github/tagit-schemes.json
-          echo "Version updated to $(tr -d '\n' < neutrino-mediathek/VERSION)"
+          if git rev-parse -q --verify "refs/tags/${v}" >/dev/null; then
+            echo "Tag ${v} already exists locally; nothing to do."
+            exit 0
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${v}" >/dev/null 2>&1; then
+            echo "Tag ${v} already exists on origin; nothing to do."
+            exit 0
+          fi
 
-      - name: Commit and push VERSION
-        run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git add neutrino-mediathek/VERSION
-          git commit -m "tagging: update VERSION" || echo "No changes to commit"
-          git push
-          git push --tags
+          git tag -a "${v}" -m "Release ${v}"
+          git push origin "refs/tags/${v}"
+          echo "Tagged ${v}"

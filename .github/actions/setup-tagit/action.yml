@@ -1,0 +1,82 @@
+name: Setup tagit
+description: Install tagit.py (pinned), configure the github-actions bot identity, and parse neutrino-mediathek/VERSION
+
+outputs:
+  ver_major:
+    description: Major version from neutrino-mediathek/VERSION
+    value: ${{ steps.parse-version.outputs.ver_major }}
+  ver_minor:
+    description: Minor version from neutrino-mediathek/VERSION
+    value: ${{ steps.parse-version.outputs.ver_minor }}
+  ver_patch:
+    description: Patch version from neutrino-mediathek/VERSION
+    value: ${{ steps.parse-version.outputs.ver_patch }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies and download tagit.py
+      shell: bash
+      env:
+        # Pin to a specific commit for supply-chain safety
+        TAGIT_COMMIT: a2411acdeecff609d1cf11d97d788f2de8bb339f
+        TAGIT_SHA256: cb62b118a3b2aaa6beab87243952ed2f9b17a1f976a4ecd98de85bb7930998e4
+      run: |
+        python -m pip install --upgrade pip
+        pip install GitPython
+        curl -fsSL "https://raw.githubusercontent.com/dbt1/tagit/${TAGIT_COMMIT}/tagit.py" \
+          -o /tmp/tagit.py
+        echo "${TAGIT_SHA256}  /tmp/tagit.py" | sha256sum -c -
+        chmod +x /tmp/tagit.py
+
+    - name: Configure git identity (github-actions bot)
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        git_user_name="github-actions[bot]"
+        git_user_email="41898282+github-actions[bot]@users.noreply.github.com"
+
+        git config user.name "$git_user_name"
+        git config user.email "$git_user_email"
+
+        {
+          echo "GIT_AUTHOR_NAME=$git_user_name"
+          echo "GIT_AUTHOR_EMAIL=$git_user_email"
+          echo "GIT_COMMITTER_NAME=$git_user_name"
+          echo "GIT_COMMITTER_EMAIL=$git_user_email"
+        } >> "$GITHUB_ENV"
+
+    - name: Parse neutrino-mediathek/VERSION
+      id: parse-version
+      shell: bash
+      run: |
+        set -euo pipefail
+        raw="$(tr -d ' \n' < neutrino-mediathek/VERSION)"
+        if [[ "$raw" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+          ver_major="${BASH_REMATCH[1]}"
+          ver_minor="${BASH_REMATCH[2]}"
+          ver_patch="${BASH_REMATCH[3]}"
+        else
+          echo "::error::Cannot parse version from neutrino-mediathek/VERSION: '${raw}'"
+          exit 1
+        fi
+
+        for v in ver_major ver_minor ver_patch; do
+          if ! [[ ${!v} =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid ${v} value: '${!v}'"
+            exit 1
+          fi
+        done
+
+        {
+          echo "ver_major=${ver_major}"
+          echo "ver_minor=${ver_minor}"
+          echo "ver_patch=${ver_patch}"
+        } >> "$GITHUB_OUTPUT"
+        echo "Parsed version: ${ver_major}.${ver_minor}.${ver_patch}"
