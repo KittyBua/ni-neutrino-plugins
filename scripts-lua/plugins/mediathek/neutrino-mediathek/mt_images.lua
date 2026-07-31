@@ -105,10 +105,14 @@ function createImages()
 		})
 	end -- icon types
 
+	local geoIconDir = conf.iconSystemPath or '/usr/share/tuxbox/neutrino/icons/'
+	if string.sub(geoIconDir, -1) ~= '/' then
+		geoIconDir = geoIconDir .. '/'
+	end
 	local candidates = {
-		'/usr/share/tuxbox/neutrino/icons/marker_dialog_off.png',
-		'/usr/share/tuxbox/neutrino/icons/marker_lock.png',
-		'/usr/share/tuxbox/neutrino/icons/lock.png'
+		geoIconDir .. 'marker_dialog_off.png',
+		geoIconDir .. 'marker_lock.png',
+		geoIconDir .. 'lock.png'
 	}
 	geoIcon = nil
 	for _, path in ipairs(candidates) do

@@ -1,0 +1,78 @@
+name: Plugin Version Bump
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - ".github/**"
+
+concurrency:
+  group: plugin-version-bump-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Setup tagit
+        id: setup
+        uses: ./.github/actions/setup-tagit
+
+      - name: Bump patch version (no tag; tagging stays manual)
+        run: |
+          set -euo pipefail
+
+          ver_major="${{ steps.setup.outputs.ver_major }}"
+          ver_minor="${{ steps.setup.outputs.ver_minor }}"
+          ver_patch="${{ steps.setup.outputs.ver_patch }}"
+          new_patch=$((ver_patch + 1))
+
+          echo "Bumping ${ver_major}.${ver_minor}.${ver_patch} -> ${ver_major}.${ver_minor}.${new_patch}"
+
+          before_head="$(git rev-parse HEAD)"
+
+          # Rewrite VERSION only. tagit makes its own commit, so undo it with a
+          # soft reset (the VERSION change stays staged) and land one controlled
+          # [skip ci] commit below. --no-tag keeps tagging manual.
+          python /tmp/tagit.py \
+            -f neutrino-mediathek/VERSION \
+            --scheme-file .github/tagit-schemes.json \
+            --version-mode increment \
+            --tag-format "v{major}.{minor}.{patch}" \
+            --major "$ver_major" \
+            --minor "$ver_minor" \
+            --patch "$new_patch" \
+            --no-tag
+          after_head="$(git rev-parse HEAD)"
+          if [ "$after_head" != "$before_head" ]; then
+            git reset --soft "$before_head"
+          fi
+
+          git add neutrino-mediathek/VERSION
+          if git diff --cached --quiet; then
+            echo "no version change"
+            exit 0
+          fi
+          git commit -m "build (ci): bump plugin version [skip ci]"
+
+          # concurrency serializes runs, not developer pushes: retry against non-ff.
+          pushed=0
+          for _ in 1 2 3; do
+            git fetch origin master \
+              && git rebase origin/master \
+              && git push origin HEAD:master && { pushed=1; break; } \
+              || git rebase --abort 2>/dev/null || true
+          done
+          [ "$pushed" = 1 ] || { echo "::error::Push nach 3 Versuchen fehlgeschlagen (non-ff)"; exit 1; }
