@@ -51,7 +51,7 @@ osd_resolution = neutrino_conf:getInt32("osd_resolution", 1)
 -- from the v{year}.{month} anchor tag. tagit rewrites the three numbers.
 local ver_major = 2026
 local ver_minor = 7
-local ver_micro = 0
+local ver_micro = 2
 local version = ver_major .. "." .. ver_minor .. "." .. ver_micro
 
 caption = "Logo Updater " .. version
@@ -472,10 +472,19 @@ local function download_logos()
 				execute_command("mkdir -p " .. shq(tmp))
 			end
 			ok = execute_command("unzip -x " .. shq(zip) .. " -d " .. shq(tmp))
-			if ok and has_posix and posix.glob then
-				for _, v in ipairs(posix.glob(tmp .. "/*/*") or {}) do
-					execute_command("mv -f " .. shq(v) .. " " .. shq(tmp))
-				end
+			if ok then
+				-- The GitHub zip wraps everything in a single top-level
+				-- directory (<repo>-<branch>). Flatten it into tmp so the
+				-- copy step finds logos/ directly. Done in the shell because
+				-- luaposix is optional and absent on some Neutrino builds
+				-- (e.g. the generic-pc build); the previous posix.glob path
+				-- silently skipped the flatten there, leaving the archive
+				-- unflattened and making the copy step fail.
+				execute_command("for d in " .. shq(tmp) .. "/*/; do " ..
+					"[ -d \"$d\" ] || continue; " ..
+					"mv -f \"$d\"* " .. shq(tmp) .. "/ 2>/dev/null; " ..
+					"rmdir \"$d\" 2>/dev/null; " ..
+					"done")
 			end
 			execute_command("rm -rf " .. shq(zip))
 		end

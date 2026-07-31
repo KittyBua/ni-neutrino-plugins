@@ -1,6 +1,6 @@
 {
   "name": "lua-logoupdater",
-  "version": "2026.7.0",
+  "version": "2026.7.2",
   "description": "Neutrino Lua plugin for channel logo updates",
   "license": "BSD-2-Clause",
   "runtime-deps": [
