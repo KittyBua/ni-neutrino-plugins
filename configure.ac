@@ -430,11 +430,23 @@ AC_ARG_ENABLE(samsungtvplus,
 	[enable_samsungtvplus="yes"])
 AM_CONDITIONAL(ENABLE_SAMSUNGTVPLUS, test "$enable_samsungtvplus" = "yes")
 
+AC_ARG_ENABLE(sportschau,
+	AS_HELP_STRING([--enable-sportschau], [enable webtv sportschau @<:@default=yes@:>@]),
+	[enable_sportschau="$enableval"],
+	[enable_sportschau="yes"])
+AM_CONDITIONAL(ENABLE_SPORTSCHAU, test "$enable_sportschau" = "yes")
+
 AC_ARG_ENABLE(yt_live,
 	AS_HELP_STRING([--enable-yt_live], [enable webtv yt_live @<:@default=yes@:>@]),
 	[enable_yt_live="$enableval"],
 	[enable_yt_live="yes"])
 AM_CONDITIONAL(ENABLE_YT_LIVE, test "$enable_yt_live" = "yes")
+
+AC_ARG_ENABLE(zdfsport,
+	AS_HELP_STRING([--enable-zdfsport], [enable webtv zdfsport @<:@default=yes@:>@]),
+	[enable_zdfsport="$enableval"],
+	[enable_zdfsport="yes"])
+AM_CONDITIONAL(ENABLE_ZDFSPORT, test "$enable_zdfsport" = "yes")
 
 dnl enable n_libraries by conditions set above
 AM_CONDITIONAL(ENABLE_N_LIBRARIES, test "$enable_mediathek" = "yes")

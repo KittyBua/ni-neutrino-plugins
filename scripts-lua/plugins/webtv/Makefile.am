@@ -30,8 +30,18 @@ webtv_DATA += \
 	samsungtvplus_de.xml
 endif
 endif
+if ENABLE_SPORTSCHAU
+webtv_DATA += \
+	sportschau.lua \
+	sportschau.xml
+endif
 if ENABLE_YT_LIVE
 webtv_DATA += \
 	yt_live.lua \
 	yt_live.xml
+endif
+if ENABLE_ZDFSPORT
+webtv_DATA += \
+	zdfsport.lua \
+	zdfsport.xml
 endif

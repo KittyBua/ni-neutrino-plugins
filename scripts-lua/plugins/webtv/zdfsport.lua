@@ -87,7 +87,7 @@ function godirectkey(d)
 		_dkey = RC.green
 	elseif d == 3 then
 		_dkey = RC.yellow
-    elseif d == 4 then
+	elseif d == 4 then
 		_dkey = RC.blue
 	elseif d < 14 then
 		_dkey = RC["" .. (d - 4) .. ""]
