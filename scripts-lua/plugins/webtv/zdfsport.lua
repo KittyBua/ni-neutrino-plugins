@@ -164,7 +164,7 @@ function playmenu(data)
 	end
 
 	if #urls > 1 then
-		sm = menu.new{name = "zdfsport", icon = "icon_blue"}
+		sm = menu.new{name = "ZDFsport", icon = "icon_blue"}
 		for index, w in ipairs(urls) do
 			sm:addItem{
 				type = "forwarder",
