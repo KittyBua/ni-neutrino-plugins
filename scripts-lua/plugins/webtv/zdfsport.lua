@@ -1,9 +1,7 @@
-  --[[
-	ZDF sport live 0.1
+--[[
+	ZDF sport live 0.6
 	satbaby
 ]]
-
--- parse zdfsport 0.4 Satbaby
 
 local n = neutrino(0, 0, SCREEN.X_RES, SCREEN.Y_RES)
 
@@ -56,19 +54,14 @@ function conv_str(_string)
 	return _string
 end
 
-function getdata(Url, redir)
-	if Url == nil then
-		return nil
-	end
+function getdata(Url,headers,Agent)
+	if Url == nil then return nil end
 	if Curl == nil then
 		Curl = curl.new()
 	end
-	local ret, data = Curl:download{
-		url = Url,
-		followRedir = redir,
-		ipv4 = true,
-		A = "Mozilla/5.0 (Linux;)"
-	}
+	if Agent == nil then Agent = "Mozilla/5.0" end
+
+	local ret, data = Curl:download{ url=Url, A=Agent, httpheader=headers, connectTimeout=5, maxRedirs=5, followRedir=true}
 	if ret == CURL.OK then
 		return data
 	else
@@ -118,24 +111,52 @@ function getNeutrinoConf(Pattern)
 	return liveScrPath
 end
 
+local function convertToLocalTime(isoStr)
+	local year, month, day, hour, min, sec = isoStr:match("(%d%d%d%d)-(%d%d)-(%d%d)T(%d%d):(%d%d):(%d%d)")
+	if not year then
+		return nil
+	end
+
+	local utcTable = {
+		year  = tonumber(year),
+		month = tonumber(month),
+		day   = tonumber(day),
+		hour  = tonumber(hour),
+		min   = tonumber(min),
+		sec   = tonumber(sec),
+		isdst = false
+	}
+	local timestamp = os.time(utcTable)
+	local localTime = os.date("*t", timestamp)
+
+	return string.format("%02d:%02d", localTime.hour, localTime.min)
+end
+
 function playmenu(data)
 	local urls = {}
 	local d = 0
 	local key = nil
 
 	if data then
+		local videotoken=data:match('videoToken\\":{\\"apiToken\\":\\"(.-)\\",')
 		local Hurls = {}
-		for page in data:gmatch('ISmartCollectionTracking(.-)episodeInfo') do
-			local title = page:match('"title\\":\\"(.-)\\"')
-			local id = page:match('"id\\":\\"(.-)"')
-			if id then
-				if Hurls[id] ~= true then
-					Hurls[id] = true
+		for page in data:gmatch('ptmdTemplate(.-ptmd.-)description') do
+			local Url = page:match('(/tmd/%d/{playerId}/live/ptmd/%d+%-%d+)\\')
+			title = page:match('"title\\":\\"(.-)\\",')
+			if title and Url then
+				Url = Url:gsub('/{playerId}/','/ngplayer_2_5/')
+				if Hurls[Url] ~= true then
+					Hurls[Url] = true
 					d = d + 1
 					key = godirectkey(d)
+					local time = page:match('plannedStart\\":\\"(.-)\\",')
+					if time then time = convertToLocalTime(time) end
+					if time then title = time .. " " .. title end
 					table.insert(urls, {
-						title = conv_str(title),
-						id = id,
+						title = title,
+						url = Url,
+						videotoken = videotoken,
+						enabled = true,
 						dkey = key
 					})
 				end
@@ -153,12 +174,11 @@ function playmenu(data)
 					if time then date = time .. " " .. date end
 					table.insert(urls, {
 						title =date .. " " .. conv_str(title),
-						id = id,
+						enabled = false,
 						dkey = key
 					})
 				end
 			end
-
 		end
 		key = nil
 	end
@@ -171,6 +191,7 @@ function playmenu(data)
 				name = w.title,
 				action = "getid",
 				id = index,
+				enabled = w.enabled,
 				directkey = w.dkey
 			}
 		end
@@ -185,19 +206,17 @@ function playmenu(data)
 	if nr > 0 then
 		local scpath = getNeutrinoConf("livestreamScriptPath")
 		if scpath then
-			local jsdata = getdata("https://sportapi.zdf.de/json-sdp/scenes/ex-" .. urls[nr].id)
+			local header = {"api-auth: Bearer " .. urls[nr].videotoken }
+			local jsdata = getdata("https://api.zdf.de" .. urls[nr].url, header)
 			local name = nil
 			local url_m3u8 = nil
 			if jsdata then
 				local jsT = json:decode(jsdata)
-				if jsT.entry_meta then
-					for _, pos in pairs(jsT.entry_meta) do
-						if pos.name == "livestream_original" then
-							url_m3u8 = pos.value
-							name = jsT.name
-							break
-						end
-					end
+				if jsT.priorityList and jsT.priorityList[1].formitaeten[1]
+					and jsT.priorityList[1].formitaeten[1].qualities[1]
+					and jsT.priorityList[1].formitaeten[1].qualities[1].audio
+					and jsT.priorityList[1].formitaeten[1].qualities[1].audio.tracks[1] then
+					url_m3u8 = jsT.priorityList[1].formitaeten[1].qualities[1].audio.tracks[1].uri
 				end
 			end
 			if url_m3u8 then
