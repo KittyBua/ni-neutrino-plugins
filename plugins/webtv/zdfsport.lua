@@ -1,5 +1,5 @@
 --[[
-	ZDF sport live 0.6
+	ZDF sport live 0.7
 	satbaby
 ]]
 
@@ -142,7 +142,7 @@ function playmenu(data)
 		local Hurls = {}
 		for page in data:gmatch('ptmdTemplate(.-ptmd.-)description') do
 			local Url = page:match('(/tmd/%d/{playerId}/live/ptmd/%d+%-%d+)\\')
-			title = page:match('"title\\":\\"(.-)\\",')
+			local title = page:match('"title\\":\\"(.-)\\",')
 			if title and Url then
 				Url = Url:gsub('/{playerId}/','/ngplayer_2_5/')
 				if Hurls[Url] ~= true then
@@ -164,17 +164,19 @@ function playmenu(data)
 		end
 		for page in data:gmatch('<div class=".-="livestream%-upcoming"(.-)</picture></div>') do
 			local date,title = page:match('livestream%-upcoming">(.-)<.-([^<>]+)</div></h3>')
-			local id = page:match('aria%-controls="(.-)"')
+-- 			local id = page:match('aria%-controls="(.-)"')
 			local time = page:match('>(ab%s+%d%d:%d%d%s+Uhr)<')
-			if title and title and id then
-				if Hurls[id] ~= true then
-					Hurls[id] = true
+			if title and title then
+				if Hurls[title] ~= true then
+					Hurls[title] = true
 					d = d + 1
 					key = godirectkey(d)
 					if time then date = time .. " " .. date end
 					table.insert(urls, {
 						title =date .. " " .. conv_str(title),
 						enabled = false,
+						videotoken = nil,
+						url = nil,
 						dkey = key
 					})
 				end
@@ -183,7 +185,7 @@ function playmenu(data)
 		key = nil
 	end
 
-	if #urls > 1 then
+	if #urls > 0 then
 		sm = menu.new{name = "ZDFsport", icon = "icon_blue"}
 		for index, w in ipairs(urls) do
 			sm:addItem{
@@ -203,12 +205,11 @@ function playmenu(data)
 		nr = 1
 	end
 
-	if nr > 0 then
+	if nr > 0  and urls and urls[nr].url and urls[nr].videotoken then
 		local scpath = getNeutrinoConf("livestreamScriptPath")
 		if scpath then
 			local header = {"api-auth: Bearer " .. urls[nr].videotoken }
 			local jsdata = getdata("https://api.zdf.de" .. urls[nr].url, header)
-			local name = nil
 			local url_m3u8 = nil
 			if jsdata then
 				local jsT = json:decode(jsdata)
@@ -228,7 +229,7 @@ function playmenu(data)
 				if r then
 					local js = json:decode(r)
 					for k, v in ipairs(js) do
-						js[k].name = name or urls[nr].title
+						js[k].name = urls[nr].title
 					end
 					return json:encode(js)
 				end
