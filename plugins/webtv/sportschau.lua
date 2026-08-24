@@ -45,7 +45,7 @@ function godirectkey(d)
 		_dkey = RC.green
 	elseif d == 3 then
 		_dkey = RC.yellow
-    elseif d == 4 then
+	elseif d == 4 then
 		_dkey = RC.blue
 	elseif d < 14 then
 		_dkey = RC["" .. (d - 4) .. ""]
@@ -123,7 +123,7 @@ function playmenu(data)
 	end
 
 	if #urls > 1 then
-		sm = menu.new{name = "sportschau", icon = "icon_blue"}
+		sm = menu.new{name = "Sportschau", icon = "icon_blue"}
 		for index, w in ipairs(urls) do
 			sm:addItem{
 				type = "forwarder",
