@@ -37,7 +37,7 @@ endif
 
 if HAVE_PYTHON
 if ENABLE_STREAMLINK
-webtv_DATA = \
+webtv_DATA += \
 	streamlink.lua
 if ENABLE_STREAMLINK_PLUTOTV
 webtv_DATA += \
