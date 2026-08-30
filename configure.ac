@@ -282,9 +282,9 @@ AC_ARG_ENABLE(mediathek,
 AM_CONDITIONAL(ENABLE_MEDIATHEK, test "$enable_mediathek" = "yes")
 
 AC_ARG_ENABLE(mtv,
-	AS_HELP_STRING([--enable-mtv], [enable mtv @<:@default=yes@:>@]),
-	[enable_mtv="$enableval"],
-	[enable_mtv="yes"])
+	AS_HELP_STRING([--enable-mtv], [enable mtv @<:@default=no@:>@]),
+	[enable_mtv="yes"],
+	[enable_mtv="$enableval"])
 AM_CONDITIONAL(ENABLE_MTV, test "$enable_mtv" = "yes")
 
 AC_ARG_ENABLE(netzkino,
