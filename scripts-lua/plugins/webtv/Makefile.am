@@ -1,8 +1,7 @@
 webtvdir = $(WEBTVDIR)
 
 webtv_DATA = \
-	best_bitrate_m3u8.lua \
-	streamlink.lua
+	best_bitrate_m3u8.lua
 
 if ENABLE_FILMON
 webtv_DATA += \
@@ -15,20 +14,10 @@ webtv_DATA += \
 	plutotv.xml \
 	plutotv_us.lua \
 	plutotv_us.xml
-if HAVE_PYTHON
-webtv_DATA += \
-	plutotv_de.xml
-endif
 endif
 if ENABLE_RAKUTENTV
 webtv_DATA += \
 	rakutentv.xml
-endif
-if ENABLE_SAMSUNGTVPLUS
-if HAVE_PYTHON
-webtv_DATA += \
-	samsungtvplus_de.xml
-endif
 endif
 if ENABLE_SPORTSCHAU
 webtv_DATA += \
@@ -44,4 +33,19 @@ if ENABLE_ZDFSPORT
 webtv_DATA += \
 	zdfsport.lua \
 	zdfsport.xml
+endif
+
+if HAVE_PYTHON
+if ENABLE_STREAMLINK
+webtv_DATA = \
+	streamlink.lua
+if ENABLE_STREAMLINK_PLUTOTV
+webtv_DATA += \
+	plutotv_de.xml
+endif
+if ENABLE_STREAMLINK_SAMSUNGTVPLUS
+webtv_DATA += \
+	samsungtvplus_de.xml
+endif
+endif
 endif
