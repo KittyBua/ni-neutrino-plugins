@@ -13,7 +13,7 @@ define(ver_date, m4_esyscmd([
 	printf "$BUILTDATE"
 ]))
 
-AC_INIT([neutrino-plugins],[ver_major.ver_minor],[https://www.neutrino-images.de])
+AC_INIT([NI-Neutrino-Plugins],[ver_major.ver_minor],[https://www.neutrino-images.de])
 AM_INIT_AUTOMAKE([foreign])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 AC_GNU_SOURCE
