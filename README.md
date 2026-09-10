@@ -7,7 +7,7 @@ Tuxbox-Plugins were added with
 for plugin in cooliTSclimax getrc input logomask logoview msgbox scripts-lua shellexec sysinfo tuxcal tuxcom tuxmail tuxwetter; do
 	git subtree add --prefix=$plugin https://github.com/tuxbox-neutrino/plugin-$plugin.git master
 done
-git subtree add --prefix=scripts-lua/plugins/mediathek https://github.com/tuxbox-neutrino/plugin-lua-neutrino-mediathek.git master
-git subtree add --prefix=scripts-lua/plugins/logoupdater https://github.com/tuxbox-neutrino/plugin-lua-logoupdater.git master
-git subtree add --prefix=scripts-lua/plugins/stb-startup https://github.com/tuxbox-neutrino/plugin-lua-stb-startup.git master
+git subtree add --prefix=scripts-lua/mediathek https://github.com/tuxbox-neutrino/plugin-lua-neutrino-mediathek.git master
+git subtree add --prefix=scripts-lua/logoupdater https://github.com/tuxbox-neutrino/plugin-lua-logoupdater.git master
+git subtree add --prefix=scripts-lua/stb-startup https://github.com/tuxbox-neutrino/plugin-lua-stb-startup.git master
 ```

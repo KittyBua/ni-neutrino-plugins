@@ -542,7 +542,7 @@ vinfo/Makefile
 
 # init scripts
 AC_CONFIG_FILES([
-scripts-sh/plugins/plugins-hide/plugins-hide
+scripts-sh/plugins-hide/plugins-hide
 ])
 
 AC_OUTPUT
